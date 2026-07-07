@@ -11,15 +11,66 @@ from multiprocessing import Pool, cpu_count
 from tqdm import tqdm, trange
 from functools import partial
 from matplotlib.widgets import Slider
-
+from skimage import io, transform, img_as_float32
 import bm3d
+
+
+def load_image_stack(
+    fpath='.',
+    file_format='tiff',
+    num=None,
+    output_size=(512, 512)
+):
+    """
+    Load image files into a 3D stack with consistent size.
+
+    Returns
+    -------
+    img_stack : ndarray
+        Shape (N, H, W)
+    """
+    pattern = os.path.join(fpath, f'*.{file_format}')
+    files = sorted(glob.glob(pattern))
+
+    if len(files) == 0:
+        raise FileNotFoundError(
+            f'No .{file_format} files found in {fpath}'
+        )
+    if num is not None:
+        files = files[:num]
+
+    def preprocess(img):
+        # PNG: normalize to [0,1]
+        if file_format.lower() == 'png':
+            img = img_as_float32(img)
+        # RGB/RGBA -> grayscale
+        if img.ndim == 3:
+            img = img[..., :3].mean(axis=-1)
+        if output_size is not None:
+            img = transform.resize(
+                img,
+                output_size,
+                anti_aliasing=True,
+                preserve_range=True
+            )
+        return img.astype(np.float32)
+    processed = []
+    for fname in tqdm(
+        files,
+        desc="Loading images",
+        unit="img"
+    ):
+        img = io.imread(fname)
+        img = preprocess(img)
+        processed.append(img)
+    img_stack = np.stack(processed, axis=0)
+    return img_stack
 
 def rm_abnormal(img):
     tmp = img.copy()
     tmp[np.isnan(tmp)] = 0
     tmp[np.isinf(tmp)] = 0
     tmp[tmp < 0] = 0
-
     return tmp
 
 def check_and_swap_img_axis(img):
@@ -76,8 +127,6 @@ def otsu_mask_stack(img, kernal_size, iters=1, bins=256, erosion_iter=0):
         img_m[i] = otsu_mask(img[i], kernal_size, iters, bins, erosion_iter)
     img_r = img * img_m
     return img_r
-        
-
 
 def rm_noise(img, noise_level=2e-3, filter_size=3):
     img_s = medfilt2d(img, filter_size)
@@ -1348,7 +1397,46 @@ def plot3D(data, axis=0, index_init=None):
     plt.show()
     return im_slider
 
+def split_image(img2D):
+    """
+    Split a 2D image of shape (2r, 2c) into two subset images of shape (r, c).
 
+    For each 2x2 block:
+      - randomly choose 2 of the 4 pixels
+      - average them into img_sub1
+      - average the remaining 2 pixels into img_sub2
+    """
+    img2D = np.asarray(img2D)
+
+    H, W = img2D.shape
+    if H % 2 != 0 or W % 2 != 0:
+        raise ValueError("Input image shape must be (2r, 2c).")
+
+    r, c = H // 2, W // 2
+
+    # Shape: (r, c, 4)
+    blocks = (
+        img2D.reshape(r, 2, c, 2)
+             .transpose(0, 2, 1, 3)
+             .reshape(r, c, 4)
+    )
+
+    # Generate random ordering of the 4 pixels for every block
+    rand_vals = np.random.rand(r, c, 4)
+    order = np.argsort(rand_vals, axis=-1)
+
+    idx1 = order[..., :2]
+    idx2 = order[..., 2:]
+
+    # Gather selected pixels
+    pixels1 = np.take_along_axis(blocks, idx1, axis=-1)
+    pixels2 = np.take_along_axis(blocks, idx2, axis=-1)
+
+    # Average
+    img_sub1 = pixels1.mean(axis=-1)
+    img_sub2 = pixels2.mean(axis=-1)
+
+    return img_sub1, img_sub2
     
 if (__name__ == '__main__'):
     pass

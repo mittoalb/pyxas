@@ -16,7 +16,7 @@ setup(
         "pystackreg",
         "xraylib",
         "h5py",
-
+        "bm3d",
     ],
     entry_points={
         'console_scripts': [
@@ -25,7 +25,7 @@ setup(
     },
     # Metadata
     author="Mingyuan Ge",
-    description="A Python package for XAS data analysis",
+    description="A Python package for 2D-XAS data analysis",
     python_requires=">=3.7",
 )
 
