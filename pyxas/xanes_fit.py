@@ -1,5 +1,6 @@
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 
+import os
 import numpy as np
 
 import pyxas
@@ -127,7 +128,7 @@ def fit_2D_xanes_using_param(img_xanes, xanes_eng, fit_param, spectrum_ref):
     for i in range(len(spectrum_ref)):
         tmp = np.array(xanes_eng[eng_s: eng_e] >= spectrum_ref[f'ref{i}'][0, 0]) * np.array(
         xanes_eng[eng_s: eng_e] <= spectrum_ref[f'ref{i}'][-1, 0]) * tmp
-    fit_eng_range = np.arange(eng_s, eng_e)[np.bool8(tmp)]
+    fit_eng_range = np.arange(eng_s, eng_e)[np.bool_(tmp)]
     # fitting
     if fit_method == 'basic':
         fit_coef, fit_cost, X, Y_hat, fit_offset, var, eng_interp, Y_interp = pyxas.fit_2D_xanes_basic(img_xanes_norm[fit_eng_range],
@@ -179,7 +180,7 @@ def fit_2D_xanes_using_param(img_xanes, xanes_eng, fit_param, spectrum_ref):
 def fit_2D_xanes_single_file(files_scan, xanes_eng, fit_param, spectrum_ref, file_save_path):
 
     time_start = time.time()
-    files_scan_short = files_scan.split("/")[-1]
+    files_scan_short = os.path.basename(files_scan)
     print(f'fitting {files_scan_short} ...')
     num_channel = len(spectrum_ref)
     thresh_thick = fit_param['fit_mask_thickness_threshold'] # thickness < thick_thresh will be 0
@@ -306,7 +307,7 @@ def save_xanes_fitting_image(res, file_save_path, fn, color='r,g,b'):
     for n in range(res['n_comp']):
         create_directory(f'{file_save_mask}/mask_{n}')
 
-    fn = fn.split('/')[-1].split('.')[0]
+    fn = os.path.basename(fn).split('.')[0]
     sli_id = fn.split('_')[-1] # slice id: string
     try:
         sli_id = f'{int(sli_id):04d}'
@@ -402,7 +403,7 @@ def fit_2D_xanes_file_mpi(file_path, file_prefix, fit_param, xanes_eng, spectrum
         fe = int(np.min([np.max(file_range), num_file]))
     files_scan = files_scan[fs:fe]
     num_file = len(files_scan)
-    print(f'processing {files_scan[0].split("/")[-1]}\n ... to {files_scan[-1].split("/")[-1]}')
+    print(f'processing {os.path.basename(files_scan[0])}\n ... to {os.path.basename(files_scan[-1])}')
 
     num_channel = len(spectrum_ref)
     try:

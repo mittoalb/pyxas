@@ -12,12 +12,20 @@ setup(
         "scikit-image",
         "scikit-learn",
         "numpy", 
-        "matplotlib",
+        # 3.10 changed default image resampling, which alters how fitted maps are rendered
+        "matplotlib<3.10",
         "pystackreg",
         "xraylib",
         "h5py",
         "bm3d",
+        "scipy",
+        "Pillow",
+        "tqdm",
+        "PyQt5",
+        "torch",
+        "torchvision",
     ],
+    package_data={"pyxas": ["icon.png"], "pyxas.pyml": ["trained_model/*.pth"]},
     entry_points={
         'console_scripts': [
             'run-pyxas = pyxas.pyxas_gui:main',

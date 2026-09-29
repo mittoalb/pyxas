@@ -373,7 +373,7 @@ def align_3D_tomo_file_mpi_sub(files_recon, img_ref, file_path='.', binning=1, c
     '''
     bin_info = ''
     fn = files_recon
-    fn_short = fn.split('/')[-1]
+    fn_short = os.path.basename(fn)
     print(f'aligning {fn_short} ...')    
     img1, scan_id, X_eng = get_tomo_image(files_recon, file_type, hdf_attr)
     if circle_mask_ratio < 1:
@@ -385,15 +385,15 @@ def align_3D_tomo_file_mpi_sub(files_recon, img_ref, file_path='.', binning=1, c
     if X_eng <= 0: # read tiff file
         try:
             fn_save = f'{file_path}/ali_{fn_short}'
-            print(f'saving aligned file: {fn_save.split("/")[-1]}\n')
+            print(f'saving aligned file: {os.path.basename(fn_save)}\n')
             io.imsave(fn_save, img_ali.astype(np.float32))
         except:
             fn_save = fn_save.split('.')[0] + '.tiff'
-            print(f'saving aligned file: {fn_save.split("/")[-1]}\n')
+            print(f'saving aligned file: {os.path.basename(fn_save)}\n')
             io.imsave(fn_save, img_ali.astype(np.float32))
     else:
         fn_save = f'{file_path}/ali_recon_{scan_id}{bin_info}.h5'  
-        print(f'saving aligned file: {fn_save.split("/")[-1]}\n')
+        print(f'saving aligned file: {os.path.basename(fn_save)}\n')
         pyxas.save_hdf_file(fn_save, 'img', img_ali.astype(np.float32), 'scan_id', scan_id, 'X_eng', X_eng)   
 
 

@@ -1,3 +1,4 @@
+import os
 import functools
 import torch
 import torch.nn as nn
@@ -251,11 +252,8 @@ def default_model():
     return model
 
 def default_model_path():
-    ml_path = __file__
-    ml_path = '/'.join(ml_path.split('/')[:-1])
-    ml_path = ml_path + '/trained_model/pre_traind_model_xanes_denoise.pth'
-    #print(ml_path)
-    return ml_path
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        'trained_model', 'pre_traind_model_xanes_denoise.pth')
 
 def load_default_model(device='cpu'):
     model = default_model()

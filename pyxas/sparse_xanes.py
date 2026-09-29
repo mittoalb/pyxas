@@ -1,3 +1,4 @@
+import os
 import pyxas
 import skimage
 import numpy as np
@@ -629,7 +630,7 @@ def plot_comparison(f_save_root):
         img_summary[0][i] = img_rec[0]
         img_summary[1][i] = img_rec[1]
         
-        n_ang = fn_rec1[i].split('/')[-1].split('.')[0]
+        n_ang = os.path.basename(fn_rec1[i]).split('.')[0]
         n_ang = n_ang.split('_')[-1]
         n_ang = int(n_ang)
         n_ang_summary[i] = n_ang

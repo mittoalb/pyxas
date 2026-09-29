@@ -1,3 +1,4 @@
+import os
 import glob
 import numpy as np
 from skimage import io
@@ -38,7 +39,7 @@ class xanesDataset(Dataset):
         img_gt = torch.tensor(img_gt, dtype=torch.float)
         eng_list = np.loadtxt(self.fn_eng[idx])
         eng_list = torch.tensor(eng_list, dtype=torch.float)
-        elem = self.fn_eng[idx].split('/')[-1].split('.')[0].split('_')[-1]
+        elem = os.path.basename(self.fn_eng[idx]).split('.')[0].split('_')[-1]
         
         return img_blur, img_gt, eng_list, elem
 
@@ -82,7 +83,7 @@ class xanesDataset_new(Dataset):
         gt_bkg = torch.tensor(gt_bkg, dtype=torch.float)
         eng_list = np.loadtxt(self.fn_eng[idx])
         eng_list = torch.tensor(eng_list, dtype=torch.float)
-        elem = self.fn_eng[idx].split('/')[-1].split('.')[0].split('_')[-1]
+        elem = os.path.basename(self.fn_eng[idx]).split('.')[0].split('_')[-1]
         
         return blur_img, gt_bkg, gt_img, eng_list, elem
 

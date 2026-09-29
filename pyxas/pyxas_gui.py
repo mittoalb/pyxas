@@ -17,11 +17,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import os
+import re
+import shutil
+import subprocess
+import tempfile
 import threading
 import time
 import textwrap
 import json
 from multiprocessing import cpu_count
+
+LAST_ROI_FILE = os.path.join(tempfile.gettempdir(), 'roi.json')
 
 
 from scipy.ndimage import shift
@@ -129,8 +135,8 @@ class App(QWidget):
             self.gui_fpath = os.readlink(self.gui_fpath)
         except:
             pass
-        self.fpath = '/'.join(self.gui_fpath.split('/')[:-1])
-        path_icon = self.fpath + '/icon.png'
+        self.fpath = os.path.dirname(os.path.abspath(self.gui_fpath))
+        path_icon = os.path.join(self.fpath, 'icon.png')
         try:
             self.setWindowIcon(QtGui.QIcon(path_icon))
         except:
@@ -333,7 +339,7 @@ class App(QWidget):
         self.ml_model_dict = {}
         self.ml_msg = ''
         self.ml_img_path = ''
-        self.ml_model_path = f'{self.fpath}/pyxas/pyml/trained_model/pre_traind_model_xanes_denoise.pth'
+        self.ml_model_path = os.path.join(self.fpath, 'pyml', 'trained_model', 'pre_traind_model_xanes_denoise.pth')
         self.ml_model_path_default = self.ml_model_path
         self.ml_train_root_dir = ''
         self.ml_train_gt_dir = ''
@@ -4131,7 +4137,7 @@ class App(QWidget):
         if fn:
             try:
                 print(fn)
-                fn_ref = fn.split('/')[-1]
+                fn_ref = os.path.basename(fn)
                 print(f'selected reference: {fn_ref}')
                 self.lb_ref_info.setText(self.lb_ref_info.text() + '\n' + f'ref #{self.num_ref}: ' + fn_ref)
                 self.lb_ref_info.setStyleSheet('color: rgb(200, 50, 50);')
@@ -4333,7 +4339,7 @@ class App(QWidget):
             for i in range(len(self.spectrum_ref)):
                 tmp = np.array(self.xanes_eng[fit_eng_s: fit_eng_e] >= self.spectrum_ref[f'ref{i}'][0, 0]) * np.array(
                 self.xanes_eng[fit_eng_s: fit_eng_e] <= self.spectrum_ref[f'ref{i}'][-1, 0]) * tmp
-            fit_eng_range = np.arange(fit_eng_s, fit_eng_e)[np.bool8(tmp)]
+            fit_eng_range = np.arange(fit_eng_s, fit_eng_e)[np.bool_(tmp)]
             return fit_eng_range
 
 
@@ -4848,18 +4854,17 @@ class App(QWidget):
             file_type = '*.*'
             fn, _ = QFileDialog.getOpenFileName(xanes, "QFileDialog.getOpenFileName()", "", '*', options=options)
             if fn:
-                fn_tmp = fn.split('/')
-                fn_short = fn_tmp[-1]
+                fn_short = os.path.basename(fn)
                 file_type = fn_short.split('.')[-1]
                 file_prefix = fn_short.split('_')[0]
                 if len(file_prefix) > 4:
                     file_prefix = file_prefix[:4]
-                self.mulit_elem_file_path = '/'.join(t for t in fn_tmp[:-1])
+                self.mulit_elem_file_path = os.path.dirname(fn)
                 self.tx_multi_elem_folder.setText(self.mulit_elem_file_path)
                 self.multi_elem_batch_files =  pyxas.retrieve_file_type(self.mulit_elem_file_path, file_prefix, file_type)
                 n_file = len(self.multi_elem_batch_files)
-                self.msg = f'{n_file} files loaded:   {self.multi_elem_batch_files[0].split("/")[-1]}  ...  ' \
-                           f'{self.multi_elem_batch_files[-1].split("/")[-1]}'
+                self.msg = f'{n_file} files loaded:   {os.path.basename(self.multi_elem_batch_files[0])}  ...  ' \
+                           f'{os.path.basename(self.multi_elem_batch_files[-1])}'
                 self.update_msg()
                 self.load_file_multi_elem_batch_successfull = 1
             else:
@@ -4901,15 +4906,14 @@ class App(QWidget):
             if self.load_file_multi_elem_batch_successfull:
                 self.pb_multi_elem_fit_batch.setEnabled(False)
                 fn = self.multi_elem_batch_files[0]
-                fn_root = fn.split('/')
-                fsave_root = '/'.join(x for x in fn_root[:-1])
+                fsave_root = os.path.dirname(fn)
                 n = len(self.multi_elem_batch_files)
                 fn_eng = self.tx_multi_elem_eng_folder.text()
                 ts = time.time()
                 for i in range(n):
                     te = time.time()
                     fn_current = self.multi_elem_batch_files[i]
-                    fn_current = fn_current.split('/')[-1]
+                    fn_current = os.path.basename(fn_current)
                     msg_current_file = f'processing {fn_current} [{i+1}/{n}]: '
                     txt_title = f'[{te-ts:4.1f} sec] [{i+1}/{n}]: '
                     fn = self.multi_elem_batch_files[i]
@@ -5062,7 +5066,7 @@ class App(QWidget):
 
 
     def save_multi_elem_batch_fit(self, fsave_root, fn, res, color_flag):
-        fn_short = fn.split('/')[-1]
+        fn_short = os.path.basename(fn)
         fn_short = fn_short.split('.')[0]
         fn_short = fn_short.split('_')[-1]
         img_thick = res['thickness']
@@ -5824,7 +5828,7 @@ class App(QWidget):
                 self.pb_3D_edge_integ.setText(f'processing {i+1} / {n_file}')
                 QApplication.processEvents()
                 fn = fs[i]
-                fn_save = fn.split('/')[-1].split('.')[0]
+                fn_save = os.path.basename(fn).split('.')[0]
                 if 'tif' in file_suffix:  # tiff file
                     img_xanes = pyxas.get_img_from_tif_file(fn)
                 else:  # h5 file
@@ -6324,7 +6328,7 @@ class App(QWidget):
         file_type = "h5 file (*.h5);;Images (*.tiff)"
         fn, _ = QFileDialog.getOpenFileName(xanes, "Open image file", ".", file_type, options=options)
         if fn:
-            fn_short = fn.split('/')[-1]
+            fn_short = os.path.basename(fn)
             f_type = fn_short.split('.')[-1]
             if not fn_short in items_img:
                 self.lst_comb_img.addItem(fn_short)
@@ -6345,7 +6349,7 @@ class App(QWidget):
         file_type = "txt (*.txt);;h5 file (*.h5)"
         fn, _ = QFileDialog.getOpenFileName(xanes, "Open X_Eng file", ".", file_type, options=options)
         if fn:
-            fn_short = fn.split('/')[-1]
+            fn_short = os.path.basename(fn)
             f_type = fn_short.split('.')[-1]
             if f_type == 'h5':
                 with h5py.File(fn, 'r') as hf:
@@ -6541,13 +6545,12 @@ class App(QWidget):
             file_type = '*.*'
             fn, _ = QFileDialog.getOpenFileName(xanes, "QFileDialog.getOpenFileName()", "", '*', options=options)
             if fn:
-                fn_tmp = fn.split('/')
-                fn_short = fn_tmp[-1]
+                fn_short = os.path.basename(fn)
                 file_type = fn_short.split('.')[-1]
                 file_prefix = fn_short.split('_')[0]
                 if len(file_prefix) > 4:
                     file_prefix = file_prefix[:4]
-                self.batch_color_file_path = '/'.join(t for t in fn_tmp[:-1])
+                self.batch_color_file_path = os.path.dirname(fn)
                 self.batch_color_files = pyxas.retrieve_file_type(self.batch_color_file_path,
                                                                   file_prefix, file_type)
                 n_file = len(self.batch_color_files)
@@ -6580,14 +6583,13 @@ class App(QWidget):
                 n = len(files)
                 for i in range(n):
                     fn = files[i]
-                    msg = f'[{i+1}/{n}]: processing {fn.split("/")[-1]} ...'
+                    msg = f'[{i+1}/{n}]: processing {os.path.basename(fn)} ...'
                     self.lb_batch_color_msg.setText(msg)
                     QApplication.processEvents()
                     img = io.imread(fn)
                     img = pyxas.check_and_swap_img_axis(img)
-                    fn_split = fn.split('/')
-                    fsave_root = '/'.join(i for i in fn_split[:-1])
-                    fn_short = fn_split[-1]
+                    fsave_root = os.path.dirname(fn)
+                    fn_short = os.path.basename(fn)
                     fn_short = fn_short.split('.')[0]
                     fn_short = fn_short.split('_')[-1]
                     fn_save = f'colormix_{fn_short}'
@@ -6649,7 +6651,7 @@ class App(QWidget):
                 for i in range(self.num_ref):
                     hf.create_dataset(f'ref{i}', data=self.spectrum_ref[f'ref{i}'])
 
-            msg = f'xanes_fit has been saved to file: "{fn}" and append to ".../{self.fn_raw_image.split("/")[-1]}"'
+            msg = f'xanes_fit has been saved to file: "{fn}" and append to ".../{os.path.basename(self.fn_raw_image)}"'
             msg = textwrap.fill(msg, 100)
             print(msg)
             self.msg = msg
@@ -6947,9 +6949,9 @@ class App(QWidget):
                     fn_roi = f'{fn}.json'
                     with open(fn_roi, "w") as outfile:
                         json.dump(roi_list, outfile)
-                with open('/tmp/roi.json', "w") as outfile_1:
+                with open(LAST_ROI_FILE, "w") as outfile_1:
                     json.dump(roi_list, outfile_1)
-                    fn_roi = '/tmp/roi.json'
+                    fn_roi = LAST_ROI_FILE
             self.msg = f'roi list saved to {fn_roi}'
         except Exception as err:
             self.msg = 'fails to save roi_list'
@@ -6983,7 +6985,7 @@ class App(QWidget):
         try:
             self.reset_roi()
             canvas = self.canvas1
-            fn = '/tmp/roi.json'
+            fn = LAST_ROI_FILE
             with open(fn) as json_file:
                 roi_list = json.load(json_file)
             canvas.roi_count = 0
@@ -7190,7 +7192,7 @@ class App(QWidget):
         if fn:
             try:
                 print(fn)
-                fn_spec = fn.split('/')[-1]
+                fn_spec = os.path.basename(fn)
                 self.external_spec = np.loadtxt(fn)
                 self.msg = f'loading existing spectrum: {fn_spec}'
                 self.update_msg()
@@ -7765,7 +7767,16 @@ class App(QWidget):
 
     def open_imagej(self):
         try:
-            os.system('imagej &')
+            names = ['imagej', 'fiji', 'ImageJ-win64', 'ImageJ', 'fiji-windows-x64',
+                     'ImageJ-linux64', 'fiji-linux-x64']
+            exe = next((p for p in map(shutil.which, names) if p), None)
+            if exe:
+                subprocess.Popen([exe])
+            elif sys.platform == 'darwin':
+                app = 'Fiji' if subprocess.run(['open', '-Ra', 'Fiji']).returncode == 0 else 'ImageJ'
+                subprocess.run(['open', '-a', app], check=True)
+            else:
+                raise FileNotFoundError('ImageJ/Fiji executable not found on PATH')
         except Exception as err:
             self.msg = f'can not find/open imagej.  Error: {str(err)}'
             self.update_msg()
@@ -7839,7 +7850,7 @@ class App(QWidget):
             if fn:
                 print(fn)
                 self.fn_raw_image = fn
-                fn_relative = fn.split('/')[-1]
+                fn_relative = os.path.basename(fn)
                 self.fpath = fn[:-len(fn_relative)-1]
                 print(f'current path: {self.fpath}')
 
@@ -8254,7 +8265,7 @@ class App(QWidget):
         if fn:
             try:
                 print(fn)
-                fn_shift = fn.split('/')[-1]
+                fn_shift = os.path.basename(fn)
                 print(f'selected shift list: {fn_shift}')
                 self.msg = f'selected shift list: {fn_shift}'
                 self.lb_shift.setText('  '+ fn_shift)
@@ -11004,12 +11015,12 @@ class App(QWidget):
         options |= QFileDialog.DontUseNativeDialog
         file_type = '*.*'
         fn, _ = QFileDialog.getOpenFileName(xanes, "QFileDialog.getOpenFileName()", "", '*', options=options)
-        fn_tmp = fn.split('/')
-        file_type = fn_tmp[-1].split('.')[-1]
-        self.file_path = '/'.join(t for t in fn_tmp[:-1])
+        fn_short = os.path.basename(fn)
+        file_type = fn_short.split('.')[-1]
+        self.file_path = os.path.dirname(fn)
         # self.file_path = QFileDialog.getExistingDirectory(None, 'Select a folder:', self.fpath, QFileDialog.ShowDirsOnly)
         self.tx_param_folder.setText(self.file_path)
-        self.tx_param_file_prefix.setText(fn_tmp[-1][:3])
+        self.tx_param_file_prefix.setText(fn_short[:3])
         self.tx_param_file_type.setText('.' + file_type)
         self.lb_execute_output.setText('')
         self.lb_3D_msg.setText(f'Message: ')
@@ -11028,8 +11039,8 @@ class App(QWidget):
             self.xanes_files = pyxas.retrieve_file_type(self.file_path, self.file_prefix, self.file_type)
             print('file load in sequence:')
             for fn in self.xanes_files:
-                print(fn.split("/")[-1])
-            msg = f'{self.xanes_files[0].split("/")[-1]}  ...  {self.xanes_files[-1].split("/")[-1]}'
+                print(os.path.basename(fn))
+            msg = f'{os.path.basename(self.xanes_files[0])}  ...  {os.path.basename(self.xanes_files[-1])}'
             self.lb_3D_msg.setText(f'Message: {len(self.xanes_files)} files loaded:   [{msg}]')
             self.load_file_successful = 1
         except Exception as err:
@@ -11047,9 +11058,7 @@ class App(QWidget):
         if fn:
             try:
                 print(fn)
-                fn_tmp = fn.split('/')
-                fn_ref = '/'.join(t for t in fn_tmp[-4:])
-                fn_ref = f'.../{fn_ref}'
+                fn_ref = os.path.join('...', *re.split(r'[\\/]', fn)[-4:])
                 print(f'selected reference: {fn_ref}')
 
                 self.lb_ref_info.setText(self.lb_ref_info.text() + '\n' + f'ref #{self.num_ref}: ' + fn_ref)
@@ -11488,7 +11497,7 @@ class App(QWidget):
 
                 return 0
             else:
-                fn = files_scan[idx].split('/')[-1].split('.')[0]
+                fn = os.path.basename(files_scan[idx]).split('.')[0]
                 try:
                     sli_id = int(fn.split('_')[-1])
                 except:
@@ -11633,21 +11642,21 @@ class App(QWidget):
         file_type = '*.*'
         fn, _ = QFileDialog.getOpenFileName(xanes, "QFileDialog.getOpenFileName()", "", file_type, options=options)
         if fn:
-            fn_tmp = fn.split('/')
-            self.tomo_file['file_path'] = '/'.join(t for t in fn_tmp[:-1])
-            tmp_prefix = fn_tmp[-1][0]
+            fn_short = os.path.basename(fn)
+            self.tomo_file['file_path'] = os.path.dirname(fn)
+            tmp_prefix = fn_short[0]
             if not (tmp_prefix in file_prefix):
-                self.tomo_file['file_prefix'] = fn_tmp[-1][0]
+                self.tomo_file['file_prefix'] = fn_short[0]
             else:
                 self.tomo_file['file_prefix'] = file_prefix
-            self.tomo_file['file_type'] = '.' + fn_tmp[-1].split('.')[-1]
+            self.tomo_file['file_type'] = '.' + fn_short.split('.')[-1]
             self.tomo_file['files'] = pyxas.retrieve_file_type(self.tomo_file['file_path'],
                                                                self.tomo_file['file_prefix'],
                                                                self.tomo_file['file_type'])
             num = len(self.tomo_file['files'])
             self.lb_3D_prep_msg.setText(f'Totally {num} files loaded')
             for i in range(num):
-                tmp = self.tomo_file['files'][i].split('/')[-1]
+                tmp = os.path.basename(self.tomo_file['files'][i])
                 self.lst_3D_tomo.addItem(tmp)
 
     def align_3D_tomo_file(self):
@@ -11894,18 +11903,18 @@ class App(QWidget):
         file_type = '*.*'
         fn, _ = QFileDialog.getOpenFileName(xanes, "QFileDialog.getOpenFileName()", "", file_type, options=options)
         if fn:
-            fn_tmp = fn.split('/')
-            self.label_file['file_path'] = '/'.join(t for t in fn_tmp[:-1])
-            tmp_prefix = fn_tmp[-1][0:3]
-            self.label_file['file_prefix'] = fn_tmp[-1][0]
-            self.label_file['file_type'] = '.' + fn_tmp[-1].split('.')[-1]
+            fn_short = os.path.basename(fn)
+            self.label_file['file_path'] = os.path.dirname(fn)
+            tmp_prefix = fn_short[0:3]
+            self.label_file['file_prefix'] = fn_short[0]
+            self.label_file['file_type'] = '.' + fn_short.split('.')[-1]
             self.label_file['files'] = pyxas.retrieve_file_type(self.label_file['file_path'],
                                                                self.label_file['file_prefix'],
                                                                self.label_file['file_type'])
             num = len(self.label_file['files'])
             self.lb_3D_prep_msg.setText(f'Totally {num} files loaded')
             for i in range(num):
-                tmp = self.label_file['files'][i].split('/')[-1]
+                tmp = os.path.basename(self.label_file['files'][i])
                 self.lst_3D_tomo2.addItem(tmp)
 
 
@@ -12081,7 +12090,7 @@ class App(QWidget):
                 filter_size = self.fit_param['filter_size']
                 for i in range(len(fs)):
                     fn = fs[i]
-                    fn_save = fn.split('/')[-1].split('.')[0]
+                    fn_save = os.path.basename(fn).split('.')[0]
                     print(f'processing {fn}')
                     self.pb_3D_find_peak_img.setText(f'processing {i + 1}/{len(fs)} ... ')
                     QApplication.processEvents()
@@ -12181,7 +12190,7 @@ class App(QWidget):
                 for i in range(len(files)):
                     msg = ''
                     fn = files[i]
-                    fn_save = fn.split('/')[-1].split('.')
+                    fn_save = os.path.basename(fn).split('.')
                     fn_save ='.'.join(i for i in fn_save[:-1])
                     msg = f'processing {i + 1}/{len(files)} ... '
                     print(f'processing {fn}')
@@ -13265,8 +13274,7 @@ class App(QWidget):
         options |= QFileDialog.DontUseNativeDialog
         file_type = '*.pth'
         fn, _ = QFileDialog.getOpenFileName(xanes, "QFileDialog.getOpenFileName()", "", file_type, options=options)
-        fn_tmp = fn.split('/')
-        file_path = '/'.join(t for t in fn_tmp[:-1])
+        file_path = os.path.dirname(fn)
         if fn:
             try:
                 self.ml_pre_defined_model = RRDBNet(1, 1, 16, 4, 32)
@@ -13275,7 +13283,7 @@ class App(QWidget):
                 self.ml_clean_model_list()
                 for i in range(n):
                     fn_model = fpath[i]
-                    model_name = (fn_model.split('/')[-1]).split('.')[0]
+                    model_name = (os.path.basename(fn_model)).split('.')[0]
                     self.ml_model_path = fn_model
                     self.ml_add_model_to_list(model_name, fn_model)
                 self.ml_msg = f'{n} model loaded'
@@ -13524,7 +13532,7 @@ class App(QWidget):
             QApplication.processEvents()
             fn_img_xanes = self.ml_img_path
             if not len(fn_img_xanes):
-                fn_img_xanes = '/tmp/tmp_image.tiff'
+                fn_img_xanes = os.path.join(tempfile.gettempdir(), 'tmp_image.tiff')
             elem = self.tx_ml_elem.text()
             eng = self.ml_eng
             num_img = np.int16(self.tx_ml_num.text())
@@ -13570,18 +13578,18 @@ class App(QWidget):
     def ml_open_directory(self, mode):
         dir_name = QFileDialog.getExistingDirectory(self, "Select a Directory")
         if dir_name:
-            dir_short = dir_name.split('/')[-1]
+            dir_short = os.path.basename(dir_name)
             if mode == 'root':
                 self.ml_train_root_dir = dir_name
                 dir_exist = np.sort(glob.glob(dir_name + '/*'))
                 n = len(dir_exist)
                 for i in range(n):
                     if 'img_gt_stack' in dir_exist[i]:
-                        self.ml_train_gt_dir = dir_exist[i].split('/')[-1]
+                        self.ml_train_gt_dir = os.path.basename(dir_exist[i])
                     if 'img_blur_stack' in dir_exist[i]:
-                        self.ml_train_blur_dir = dir_exist[i].split('/')[-1]
+                        self.ml_train_blur_dir = os.path.basename(dir_exist[i])
                     if 'img_eng_list' in dir_exist[i]:
-                        self.ml_train_eng_dir = dir_exist[i].split('/')[-1]
+                        self.ml_train_eng_dir = os.path.basename(dir_exist[i])
             if mode == 'gt':
                 self.ml_train_gt_dir = dir_short
             if mode == 'blur':
@@ -13636,7 +13644,7 @@ class App(QWidget):
         if fn:
             try:
                 print(fn)
-                fn_ref = fn.split('/')[-1]
+                fn_ref = os.path.basename(fn)
                 print(f'selected reference: {fn_ref}')
                 self.lb_ml_ref.setText(self.lb_ml_ref.text() + '\n' + f'ref #{self.ml_num_ref}: ' + fn_ref)
                 self.lb_ml_ref.setStyleSheet('color: rgb(200, 50, 50);')
@@ -13748,7 +13756,7 @@ class App(QWidget):
         fn_model_init = self.tx_ml_model_path.text()
         self.ml_add_model_to_list('Init model', fn_model_init)
         for i in range(n):
-            model_name = f_model[i].split('/')[-1]
+            model_name = os.path.basename(f_model[i])
             model_name = model_name.split('.')[0]
             model_path = f_model[i]
             self.ml_add_model_to_list(model_name, model_path)
@@ -13787,10 +13795,9 @@ class App(QWidget):
                 return img
             else:
                 model_path = self.ml_model_dict[model_name]
-                fn_root = model_path.split('/')
-                fn_root = '/'.join(k for k in fn_root[:-2])
-                fpath_img = fn_root + '/model_output'
-                f_img = np.sort(glob.glob(fpath_img + '/output*'))
+                fn_root = os.path.dirname(os.path.dirname(model_path))
+                fpath_img = os.path.join(fn_root, 'model_output')
+                f_img = np.sort(glob.glob(os.path.join(fpath_img, 'output*')))
                 f_bkg = np.sort(glob.glob(fpath_img + '/bkg*'))
 
                 idx = (model_name.split('.')[0]).split('_')[-1]

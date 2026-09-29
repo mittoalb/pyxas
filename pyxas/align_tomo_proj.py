@@ -1,3 +1,4 @@
+import os
 import pyxas
 import numpy as np
 import time
@@ -10,10 +11,9 @@ def align_tomo_proj_serial(file_path, file_prefix='fly', file_type='.h5', ref_in
         ref_index = len(files_scan)-1
     fn_ref = files_scan[ref_index]
     res_ref = pyxas.get_img_from_hdf_file(fn_ref, 'angle', 'img_tomo', 'img_bkg_avg', 'img_dark_avg', 'scan_id', 'X_eng')
-    fn_current = fn_ref.split('/')[:-1]
-    fn_current = '/'.join(tmp for tmp in fn_current)
-    fn_short = fn_ref.split('/')[-1]
-    fn_save = f'{fn_current}/ali_{fn_short}'
+    fn_current = os.path.dirname(fn_ref) or '.'
+    fn_short = os.path.basename(fn_ref)
+    fn_save = os.path.join(fn_current, f'ali_{fn_short}')
 
     ref_img = res_ref['img_tomo']
     ref_angle = res_ref['angle']
@@ -35,13 +35,13 @@ def align_tomo_proj_serial(file_path, file_prefix='fly', file_type='.h5', ref_in
             angle_id = pyxas.find_nearest(ref_angle, res_angle[j])
             img_ref = res_ref['img_tomo'][angle_id]
             prj_ali[j], r_shift[j], c_shift[j] = pyxas.align_img_stackreg(img_ref, prj_ali[j], align_flag=1)
-            print(f'{fn.split("/")[-1]} proj #{j}: r_shift = {r_shift[j]:3.1f}, c_shift = {c_shift[j]:3.1f}')
+            print(f'{os.path.basename(fn)} proj #{j}: r_shift = {r_shift[j]:3.1f}, c_shift = {c_shift[j]:3.1f}')
         
-        fn_short = fn.split('/')[-1]
-        fn_save = f'{fn_current}/ali_{fn_short}'
+        fn_short = os.path.basename(fn)
+        fn_save = os.path.join(fn_current, f'ali_{fn_short}')
 
         pyxas.save_hdf_file(fn_save, 'angle', res['angle'], 'img_tomo', np.array(prj_ali, dtype=np.float32), 'img_bkg_avg', res['img_bkg_avg'], 'img_dark_avg', res['img_dark_avg'], 'scan_id', res['scan_id'], 'X_eng', res['X_eng'], 'r_shift', r_shift, 'c_shift', c_shift)
-        print(f'{fn_save.split("/")[-1]} saved,  time elaped: {time.time() - time_s:4.2f} sec')
+        print(f'{os.path.basename(fn_save)} saved,  time elaped: {time.time() - time_s:4.2f} sec')
         
 
 
@@ -73,12 +73,9 @@ def align_two_tomo_prj_mpi(fn_ref, fn_target, num_cpu=20):
     from multiprocessing import Pool, cpu_count
     from functools import partial
     res_ref = pyxas.get_img_from_hdf_file(fn_ref, 'angle', 'img_tomo', 'img_bkg_avg', 'img_dark_avg', 'scan_id', 'X_eng')
-    fn_current = fn_ref.split('/')[:-1]
-    if not len(fn_current):
-        fn_current = '.'
-    fn_current = '/'.join(tmp for tmp in fn_current)
-    fn_short = fn_ref.split('/')[-1]
-    fn_save = f'{fn_current}/ali_{fn_short}'
+    fn_current = os.path.dirname(fn_ref) or '.'
+    fn_short = os.path.basename(fn_ref)
+    fn_save = os.path.join(fn_current, f'ali_{fn_short}')
 
     ref_img = res_ref['img_tomo']
     ref_angle = res_ref['angle']
@@ -87,8 +84,8 @@ def align_two_tomo_prj_mpi(fn_ref, fn_target, num_cpu=20):
     img_bkg = res['img_bkg_avg']
     img_dark = res['img_dark_avg']
     target_angle = res['angle']
-    fn_target_short = fn_target.split('/')[-1]
-    fn_save = f'{fn_current}/ali_norm_{fn_target_short}'
+    fn_target_short = os.path.basename(fn_target)
+    fn_save = os.path.join(fn_current, f'ali_norm_{fn_target_short}')
     current_angle_index = np.arange(len(target_angle))
 
     time_s = time.time()    
@@ -119,7 +116,7 @@ def align_tomo_prj_mpi(file_path, file_prefix='fly', file_type='.h5', ref_index=
         fn_target = files_scan[i]
         if i == ref_index:
             continue
-        print(f'aligning #{i}/{n}   {fn_ref.split("/")[-1]} ')
+        print(f'aligning #{i}/{n}   {os.path.basename(fn_ref)} ')
         align_two_tomo_prj_mpi(fn_ref, fn_target, num_cpu)
 
 
@@ -132,7 +129,7 @@ def batch_recon(file_path, file_prefix='fly', file_type='.h5', rot_cen=[], binni
     for i in range(n):
         time_s = time.time()
         fn = files_scan[i]
-        print(f'recon {i+1}/{n}: {fn.split("/")[-1]}')
+        print(f'recon {i+1}/{n}: {os.path.basename(fn)}')
         recon(fn, rot_cen[i], sli=sli, binning=binning, txm_normed_flag=txm_normed_flag, block_list=block_list, read_full_memory=read_full_memory)
         print(f'************* take {time.time()-time_s:4.1f} sec ***************\n')
 

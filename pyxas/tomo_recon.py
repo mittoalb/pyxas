@@ -328,7 +328,7 @@ def batch_recon(fs, cen_list, sli=[], block_list=[], binning=1, denoise_flag=0):
     for i in range(num_file):
         rotcen = cen_list[i, 1]
         fn = fs[i]
-        print(f'recon {fn.split("/")[-1]} ...')
+        print(f'recon {os.path.basename(fn)} ...')
         recon(fn, rotcen, binning=binning, sli=sli, block_list=block_list, denoise_flag=denoise_flag)
 
 
